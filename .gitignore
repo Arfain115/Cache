@@ -1,0 +1,8 @@
+cache_prompt_*.txt
+secrets_for_streamlit.toml
+.streamlit/secrets.toml
+data/
+results/
+__pycache__/
+.env
+ 

@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+google-genai
+faiss-cpu
+numpy
+pydantic
+streamlit

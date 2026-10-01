@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cache</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@700&family=Instrument+Sans:wght@400;500&display=swap">
+<style>
+  :root { --bg:#dce3ea; --panel:#f7f9fb; --ink:#17202b; --you:#24406b; --line:#b8c3cf; --mute:#5b6878; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; overflow: hidden; }
+  body { background: var(--bg); color: var(--ink); font: 16px/1.45 "Instrument Sans", system-ui, sans-serif; }
+  main { height: 100dvh; max-width: 680px; margin: 0 auto; display: flex; flex-direction: column; }
+  header { flex: none; display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; padding: 20px 20px 14px; border-bottom: 1px solid var(--line); }
+  h1 { font: 700 38px/1 "Bricolage Grotesque", system-ui, sans-serif; margin: 0; letter-spacing: -0.02em; }
+  header p { margin: 6px 0 0; color: var(--mute); font-size: 14px; }
+  #forget { background: none; border: 0; padding: 4px 0; color: var(--mute); font: inherit; font-size: 13px; cursor: pointer; text-decoration: underline; }
+  #log { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px 20px; display: flex; flex-direction: column; gap: 8px;
+         scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+  #log::-webkit-scrollbar { width: 6px; }
+  #log::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+  .m { max-width: 82%; padding: 9px 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .cache { background: var(--panel); border-radius: 4px 16px 16px 16px; align-self: flex-start; }
+  .you { background: var(--you); color: #fff; border-radius: 16px 4px 16px 16px; align-self: flex-end; }
+  .sys { align-self: center; color: var(--mute); font-size: 13px; }
+  .dots { color: var(--mute); letter-spacing: 3px; }
+  form { flex: none; padding: 10px 16px calc(14px + env(safe-area-inset-bottom)); }
+  .box { display: flex; align-items: center; gap: 6px; padding: 5px 5px 5px 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; }
+  .box:focus-within { border-color: var(--you); box-shadow: 0 0 0 3px rgba(36,64,107,.15); }
+  input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font: inherit; color: var(--ink); padding: 8px 0; }
+  .send { flex: none; width: 38px; height: 38px; border: 0; border-radius: 50%; background: var(--you); color: #fff; display: grid; place-items: center; cursor: pointer; }
+  .send:focus-visible, #forget:focus-visible { outline: 2px solid var(--you); outline-offset: 2px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div><h1>Cache</h1><p>Your “Real” Online Friend</p></div>
+    <button id="forget" type="button">Forget me</button>
+  </header>
+  <div id="log" aria-live="polite"></div>
+  <form id="f">
+    <div class="box">
+      <input id="t" maxlength="500" autocomplete="off" placeholder="Say something" aria-label="Message">
+      <button class="send" aria-label="Send"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+    </div>
+  </form>
+</main>
+<script>
+  const log = document.getElementById("log"), t = document.getElementById("t");
+  let uid = localStorage.getItem("cache_uid");
+  if (!uid) { uid = "u" + crypto.randomUUID().replace(/-/g, ""); localStorage.setItem("cache_uid", uid); }
+
+  function add(text, cls) { const d = document.createElement("div"); d.className = "m " + cls; d.textContent = text; log.appendChild(d); log.scrollTop = log.scrollHeight; return d; }
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  fetch("/history?user_id=" + uid).then(r => r.json()).then(d => d.messages.forEach(m => add(m.text, m.role === "user" ? "you" : "cache"))).catch(() => {});
+
+  document.getElementById("f").addEventListener("submit", async e => {
+    e.preventDefault();
+    const text = t.value.trim(); if (!text) return;
+    t.value = ""; t.focus(); add(text, "you");
+    const dots = add("...", "cache dots");
+    try {
+      const [res] = await Promise.all([fetch("/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ user_id: uid, message: text }) }), sleep(500)]);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Message failed. Try again.");
+      dots.remove();
+      if (data.reply) { await sleep(Math.min(1200, data.reply.length * 15)); add(data.reply, "cache"); }
+    } catch (err) { dots.remove(); add(err.message, "sys"); }
+  });
+
+  document.getElementById("forget").addEventListener("click", async () => {
+    if (!confirm("Delete everything Cache remembers about you?")) return;
+    await fetch("/forget?user_id=" + uid, { method: "POST" });
+    log.innerHTML = ""; add("Memory cleared.", "sys");
+  });
+</script>
+</body>
+</html>
